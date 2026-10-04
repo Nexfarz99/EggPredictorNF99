@@ -1,4 +1,4 @@
--- Custom UI + Cloud-Synced Eternal Predictor
+-- Custom UI + Cloud-Synced Eternal Predictor (Dynamic WIB)
 -- Creator: By Nexfarz99
 
 local CoreGui = game:GetService("CoreGui")
@@ -43,7 +43,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -70, 0, 26)
 Title.Position = UDim2.new(0, 12, 0, 6)
 Title.BackgroundTransparency = 1
-Title.Text = "ETERNAL PREDICTOR (CLOUD)"
+Title.Text = "ETERNAL PREDICTOR (WIB)"
 Title.TextColor3 = Color3.fromRGB(255, 215, 0)
 Title.TextSize = 14
 Title.Font = Enum.Font.SourceSansBold
@@ -61,7 +61,7 @@ Subtitle.Font = Enum.Font.SourceSansItalic
 Subtitle.TextXAlignment = Enum.TextXAlignment.Left
 Subtitle.Parent = MainFrame
 
--- Minimize Button (-)
+-- Minimize & Close Buttons
 local MinBtn = Instance.new("TextButton")
 MinBtn.Size = UDim2.new(0, 24, 0, 24)
 MinBtn.Position = UDim2.new(1, -56, 0, 8)
@@ -76,7 +76,6 @@ local MinCorner = Instance.new("UICorner")
 MinCorner.CornerRadius = UDim.new(0, 6)
 MinCorner.Parent = MinBtn
 
--- Close Button (X)
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0, 24, 0, 24)
 CloseBtn.Position = UDim2.new(1, -28, 0, 8)
@@ -91,7 +90,6 @@ local CloseCorner = Instance.new("UICorner")
 CloseCorner.CornerRadius = UDim.new(0, 6)
 CloseCorner.Parent = CloseBtn
 
--- Floating Open Button
 local OpenBtn = Instance.new("TextButton")
 OpenBtn.Size = UDim2.new(0, 45, 0, 45)
 OpenBtn.Position = UDim2.new(0, 15, 0.5, -22)
@@ -128,7 +126,7 @@ local Disclaimer = Instance.new("TextLabel")
 Disclaimer.Size = UDim2.new(0.94, 0, 0, 28)
 Disclaimer.Position = UDim2.new(0.03, 0, 0, 46)
 Disclaimer.BackgroundTransparency = 1
-Disclaimer.Text = "⚠️ There is NO 100% guarantee. Predictions are calculated using historical percentage and average RNG intervals."
+Disclaimer.Text = "⚠️ Live prediction system. Passed estimate windows will automatically roll over to next window."
 Disclaimer.TextColor3 = Color3.fromRGB(160, 160, 160)
 Disclaimer.TextSize = 10
 Disclaimer.TextWrapped = true
@@ -163,45 +161,59 @@ UIList.SortOrder = Enum.SortOrder.LayoutOrder
 UIList.Padding = UDim.new(0, 6)
 UIList.Parent = Scroll
 
--- 2. DATABASE PREDIKSI (Default baseline os.time() biar gak 'Unknown')
+-- Helper: Format Timestamp to WIB String (HH:MM WIB)
+local function FormatWIB(timestamp)
+    return os.date("!%H:%M", timestamp + 25200) .. " WIB"
+end
+
+-- 2. DATABASE PREDIKSI (Interval dalam Menit)
 local now = os.time()
 local petDatabase = {
-    ["Phoenix"]        = {avgInterval = 195, lastSpawnTick = now, cardObj = nil},
-    ["Skeleton Horse"] = {avgInterval = 250, lastSpawnTick = now, cardObj = nil},
-    ["Ice Dragon"]     = {avgInterval = 230, lastSpawnTick = now, cardObj = nil},
-    ["Lava Dragon"]    = {avgInterval = 310, lastSpawnTick = now, cardObj = nil},
-    ["Sun Lion"]       = {avgInterval = 270, lastSpawnTick = now, cardObj = nil},
-    ["Lunar Dragon"]   = {avgInterval = 170, lastSpawnTick = now, cardObj = nil},
-    ["Oni Tiger"]      = {avgInterval = 140, lastSpawnTick = now, cardObj = nil},
-    ["Pegasus"]        = {avgInterval = 330, lastSpawnTick = now, cardObj = nil}
+    ["Phoenix"]        = {avgInterval = 195, lastSpawnTick = now - (195*60), cardObj = nil},
+    ["Skeleton Horse"] = {avgInterval = 250, lastSpawnTick = now - (250*60), cardObj = nil},
+    ["Ice Dragon"]     = {avgInterval = 230, lastSpawnTick = now - (230*60), cardObj = nil},
+    ["Lava Dragon"]    = {avgInterval = 310, lastSpawnTick = now - (310*60), cardObj = nil},
+    ["Sun Lion"]       = {avgInterval = 270, lastSpawnTick = now - (270*60), cardObj = nil},
+    ["Lunar Dragon"]   = {avgInterval = 170, lastSpawnTick = now - (170*60), cardObj = nil},
+    ["Oni Tiger"]      = {avgInterval = 140, lastSpawnTick = now - (140*60), cardObj = nil},
+    ["Pegasus"]        = {avgInterval = 330, lastSpawnTick = now - (330*60), cardObj = nil}
 }
 
--- RECALCULATE & FORMAT PREDICTION TIME
+-- RECALCULATE & ROLLOVER PREDICTIONS
 local function RecalculatePredictions()
+    local currentTime = os.time()
     for name, data in pairs(petDatabase) do
-        local elapsedSec = os.time() - data.lastSpawnTick
-        local elapsedMin = elapsedSec / 60
-        local avgMin = data.avgInterval
+        local intervalSec = data.avgInterval * 60
+        local nextSpawnTick = data.lastSpawnTick + intervalSec
         
-        local estSpawnUnix = data.lastSpawnTick + (avgMin * 60)
-        local lastTimeText = os.date("%H:%M", data.lastSpawnTick)
-        local estTimeText = os.date("%H:%M", estSpawnUnix)
+        -- AUTO ROLLOVER: Jika jam prediksi sudah terlewati dari jam WIB sekarang, hitung window berikutnya!
+        while nextSpawnTick < currentTime do
+            nextSpawnTick = nextSpawnTick + intervalSec
+        end
         
-        local ratio = elapsedMin / avgMin
-        local chance = math.clamp(math.floor(ratio * 70), 5, 98)
+        local lastTimeText = (data.lastSpawnTick > 0) and FormatWIB(data.lastSpawnTick) or "Unknown"
+        local estTimeText = FormatWIB(nextSpawnTick)
+        
+        local diffSec = nextSpawnTick - currentTime
+        local diffMin = math.floor(diffSec / 60)
+        
         local statusText = "💤 COOLDOWN"
+        local chance = 10
         
-        if ratio >= 1.2 then
-            chance = 95
-            statusText = "🔥 CRITICAL OVERDUE!"
-        elseif ratio >= 0.9 then
+        if diffMin <= 15 then
+            statusText = "🚨 HIGH ALERT!"
+            chance = 90
+        elseif diffMin <= 45 then
             statusText = "⚠️ SPAWN WINDOW"
+            chance = 65
+        else
+            chance = math.clamp(math.floor((1 - (diffMin / data.avgInterval)) * 100), 10, 50)
         end
         
         if data.cardObj then
             local desc = data.cardObj:FindFirstChild("Details")
             if desc then
-                desc.Text = "Last: " .. lastTimeText .. " | Est: " .. estTimeText .. " | " .. statusText .. " (" .. chance .. "%)"
+                desc.Text = "Last: " .. lastTimeText .. " | Next Est: " .. estTimeText .. " | " .. statusText .. " (" .. chance .. "%)"
             end
         end
     end
@@ -321,7 +333,7 @@ end)
 -- AUTO REFRESH LOOP
 task.spawn(function()
     FetchCloudData()
-    while task.wait(15) do
-        FetchCloudData()
+    while task.wait(10) do
+        RecalculatePredictions()
     end
 end)
