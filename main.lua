@@ -15,7 +15,7 @@ if CoreGui:FindFirstChild("EternalPredictorUI") then
     CoreGui.EternalPredictorUI:Destroy()
 end
 
--- 1. UI SETUP (Ukuran dilebarin ke 420px)
+-- 1. UI SETUP
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "EternalPredictorUI"
 ScreenGui.Parent = CoreGui
@@ -38,7 +38,7 @@ MainUIStroke.Thickness = 2
 MainUIStroke.Color = Color3.fromRGB(255, 140, 0)
 MainUIStroke.Parent = MainFrame
 
--- HEADER & CONTROL BUTTONS (Minimize & Close)
+-- HEADER & CONTROL BUTTONS
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -70, 0, 26)
 Title.Position = UDim2.new(0, 12, 0, 6)
@@ -91,7 +91,7 @@ local CloseCorner = Instance.new("UICorner")
 CloseCorner.CornerRadius = UDim.new(0, 6)
 CloseCorner.Parent = CloseBtn
 
--- Floating Open Button (Saat Minimize)
+-- Floating Open Button
 local OpenBtn = Instance.new("TextButton")
 OpenBtn.Size = UDim2.new(0, 45, 0, 45)
 OpenBtn.Position = UDim2.new(0, 15, 0.5, -22)
@@ -163,44 +163,39 @@ UIList.SortOrder = Enum.SortOrder.LayoutOrder
 UIList.Padding = UDim.new(0, 6)
 UIList.Parent = Scroll
 
--- 2. DATABASE PREDIKSI
+-- 2. DATABASE PREDIKSI (Default baseline os.time() biar gak 'Unknown')
+local now = os.time()
 local petDatabase = {
-    ["Phoenix"]        = {avgInterval = 195, lastSpawnTick = 0, cardObj = nil},
-    ["Skeleton Horse"] = {avgInterval = 250, lastSpawnTick = 0, cardObj = nil},
-    ["Ice Dragon"]     = {avgInterval = 230, lastSpawnTick = 0, cardObj = nil},
-    ["Lava Dragon"]    = {avgInterval = 310, lastSpawnTick = 0, cardObj = nil},
-    ["Sun Lion"]       = {avgInterval = 270, lastSpawnTick = 0, cardObj = nil},
-    ["Lunar Dragon"]   = {avgInterval = 170, lastSpawnTick = 0, cardObj = nil},
-    ["Oni Tiger"]      = {avgInterval = 140, lastSpawnTick = 0, cardObj = nil},
-    ["Pegasus"]        = {avgInterval = 330, lastSpawnTick = 0, cardObj = nil}
+    ["Phoenix"]        = {avgInterval = 195, lastSpawnTick = now, cardObj = nil},
+    ["Skeleton Horse"] = {avgInterval = 250, lastSpawnTick = now, cardObj = nil},
+    ["Ice Dragon"]     = {avgInterval = 230, lastSpawnTick = now, cardObj = nil},
+    ["Lava Dragon"]    = {avgInterval = 310, lastSpawnTick = now, cardObj = nil},
+    ["Sun Lion"]       = {avgInterval = 270, lastSpawnTick = now, cardObj = nil},
+    ["Lunar Dragon"]   = {avgInterval = 170, lastSpawnTick = now, cardObj = nil},
+    ["Oni Tiger"]      = {avgInterval = 140, lastSpawnTick = now, cardObj = nil},
+    ["Pegasus"]        = {avgInterval = 330, lastSpawnTick = now, cardObj = nil}
 }
 
 -- RECALCULATE & FORMAT PREDICTION TIME
 local function RecalculatePredictions()
     for name, data in pairs(petDatabase) do
-        local lastTimeText = "Unknown"
-        local estTimeText = "Calculating..."
-        local chance = 5
+        local elapsedSec = os.time() - data.lastSpawnTick
+        local elapsedMin = elapsedSec / 60
+        local avgMin = data.avgInterval
+        
+        local estSpawnUnix = data.lastSpawnTick + (avgMin * 60)
+        local lastTimeText = os.date("%H:%M", data.lastSpawnTick)
+        local estTimeText = os.date("%H:%M", estSpawnUnix)
+        
+        local ratio = elapsedMin / avgMin
+        local chance = math.clamp(math.floor(ratio * 70), 5, 98)
         local statusText = "💤 COOLDOWN"
         
-        if data.lastSpawnTick > 0 then
-            local elapsedSec = os.time() - data.lastSpawnTick
-            local elapsedMin = elapsedSec / 60
-            local avgMin = data.avgInterval
-            
-            local estSpawnUnix = data.lastSpawnTick + (avgMin * 60)
-            lastTimeText = os.date("%H:%M", data.lastSpawnTick)
-            estTimeText = os.date("%H:%M", estSpawnUnix)
-            
-            local ratio = elapsedMin / avgMin
-            chance = math.clamp(math.floor(ratio * 70), 5, 98)
-            
-            if ratio >= 1.2 then
-                chance = 95
-                statusText = "🔥 CRITICAL OVERDUE!"
-            elseif ratio >= 0.9 then
-                statusText = "⚠️ SPAWN WINDOW"
-            end
+        if ratio >= 1.2 then
+            chance = 95
+            statusText = "🔥 CRITICAL OVERDUE!"
+        elseif ratio >= 0.9 then
+            statusText = "⚠️ SPAWN WINDOW"
         end
         
         if data.cardObj then
@@ -224,9 +219,11 @@ local function FetchCloudData()
         if response and response.Body then
             local decoded = HttpService:JSONDecode(response.Body)
             local cloudData = decoded.record
-            for petName, lastTick in pairs(cloudData) do
-                if petDatabase[petName] and type(lastTick) == "number" then
-                    petDatabase[petName].lastSpawnTick = lastTick
+            if cloudData then
+                for petName, lastTick in pairs(cloudData) do
+                    if petDatabase[petName] and type(lastTick) == "number" and lastTick > 0 then
+                        petDatabase[petName].lastSpawnTick = lastTick
+                    end
                 end
             end
             StatusLabel.Text = "STATUS: Synced with Cloud!"
